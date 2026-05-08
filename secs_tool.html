@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SECS Message Generator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 20px;
+            background: #fafafa;
+            color: #333;
+            margin: 0;
+        }
+
+        .header {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .header h2 {
+            margin: 0;
+            color: #222;
+            font-size: 24px;
+        }
+
+        .container {
+            display: flex;
+            gap: 15px;
+            max-width: 1400px;
+            margin: 0 auto;
+            height: calc(100vh - 120px);
+        }
+
+        .box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .label-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            height: 24px;
+        }
+
+        label {
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+
+        textarea {
+            flex: 1;
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: "Cascadia Code", "Consolas", "Liberation Mono", monospace;
+            font-size: 13px;
+            box-sizing: border-box;
+            resize: none;
+            outline: none;
+            transition: border 0.2s;
+            background: #fff;
+        }
+
+        textarea:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+        }
+
+        #output {
+            background: #f8f9fa;
+            color: #2c3e50;
+            border-left: 4px solid #28a745;
+        }
+
+        /* Switch Component */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 34px;
+            height: 18px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 18px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(16px);
+        }
+
+        /* Copy Button */
+        .copy-btn {
+            position: absolute;
+            top: 40px;
+            right: 10px;
+            padding: 4px 10px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            z-index: 10;
+            transition: opacity 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        .copy-btn:active {
+            opacity: 0.8;
+        }
+
+        .status-bar {
+            margin-top: 5px;
+            font-size: 12px;
+            height: 18px;
+        }
+
+        .error {
+            color: #e74c3c;
+        }
+
+        .success-info {
+            color: #888;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h2>SECS Message Generator</h2>
+    </div>
+
+    <div class="container">
+        <!-- Input Section -->
+        <div class="box">
+            <div class="label-row">
+                <label>JSON Input</label>
+            </div>
+            <textarea id="jsonInput" placeholder="Paste JSON here..."></textarea>
+            <div id="errorMsg" class="status-bar error"></div>
+        </div>
+
+        <!-- Output Section -->
+        <div class="box">
+            <div class="label-row">
+                <label>Generated Result</label>
+                <label class="switch" title="Toggle Format (XML / Notation)">
+                    <input type="checkbox" id="formatSwitch">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button class="copy-btn" id="copyBtn" onclick="copyToClipboard()">Copy</button>
+            <textarea id="output" readonly placeholder="Result will appear here..."></textarea>
+            <div class="status-bar success-info" id="infoMsg"></div>
+        </div>
+    </div>
+
+    <script>
+        const jsonInput = document.getElementById('jsonInput');
+        const output = document.getElementById('output');
+        const formatSwitch = document.getElementById('formatSwitch');
+        const errorMsg = document.getElementById('errorMsg');
+        const infoMsg = document.getElementById('infoMsg');
+        const copyBtn = document.getElementById('copyBtn');
+
+        function convertToXML(obj) {
+            const keys = Object.keys(obj);
+            let xml = `<List Length="${keys.length}">\n`;
+            keys.forEach(k => {
+                const val = String(obj[k]);
+                xml += `  <ASCII Length="${val.length}" Value="${val}" />\n`;
+            });
+            xml += `</List>`;
+            return xml;
+        }
+
+        function convertToNotation(obj) {
+            const keys = Object.keys(obj);
+            const lenStr = String(keys.length).padStart(2, '0');
+            let notation = `<L[${lenStr}], \n`;
+            keys.forEach(k => {
+                const val = String(obj[k]);
+                notation += `  A[${val.length}] "${val}"> \n`;
+            });
+            // Standardizing the closing tag format
+            return notation.trimEnd().replace(/>$/, "") + "> ";
+        }
+
+        function performConversion() {
+            const val = jsonInput.value.trim();
+            if (!val) {
+                output.value = "";
+                errorMsg.innerText = "";
+                infoMsg.innerText = "";
+                return;
+            }
+
+            try {
+                const jsonObj = JSON.parse(val);
+                output.value = formatSwitch.checked ? convertToNotation(jsonObj) : convertToXML(jsonObj);
+                errorMsg.innerText = "";
+                infoMsg.innerText = formatSwitch.checked ? "Mode: Notation" : "Mode: XML";
+            } catch (e) {
+                output.value = "";
+                errorMsg.innerText = "Invalid JSON Syntax";
+                infoMsg.innerText = "";
+            }
+        }
+
+        function copyToClipboard() {
+            if (!output.value) return;
+            navigator.clipboard.writeText(output.value).then(() => {
+                const originalText = copyBtn.innerText;
+                copyBtn.innerText = "Copied!";
+                copyBtn.style.background = "#007bff";
+                setTimeout(() => {
+                    copyBtn.innerText = originalText;
+                    copyBtn.style.background = "#28a745";
+                }, 1000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+
+        jsonInput.addEventListener('input', performConversion);
+        formatSwitch.addEventListener('change', performConversion);
+    </script>
+</body>
+
+</html>
